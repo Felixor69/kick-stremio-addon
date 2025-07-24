@@ -1,7 +1,9 @@
 const express = require("express");
 const axios = require("axios");
+const NodeCache = require("node-cache");
 
 const app = express();
+const cache = new NodeCache({ stdTTL: 300 }); // Cache na 5 minut
 const PORT = process.env.PORT || 3000;
 
 const streamers = [
@@ -35,7 +37,8 @@ app.get("/manifest.json", (req, res) => {
       {
         type: "tv",
         id: "kick-catalog",
-        name: "Kick Streamerzy"
+        name: "Kick Streamerzy",
+        extra: [{ id: "search", name: "Search" }]
       }
     ]
   });
@@ -52,9 +55,24 @@ app.get("/catalog/tv/kick-catalog.json", (req, res) => {
   res.json({ metas });
 });
 
+app.get("/catalog/tv/kick-catalog/search=:search.json", (req, res) => {
+  const searchTerm = req.params.search.toLowerCase();
+  const filtered = streamers.filter(
+    (s) => s.name.toLowerCase().includes(searchTerm) || s.description.toLowerCase().includes(searchTerm)
+  );
+  const metas = filtered.map((s) => ({
+    id: s.id,
+    type: "tv",
+    name: s.name,
+    poster: s.poster,
+    description: s.description
+  }));
+  res.json({ metas });
+});
+
 app.get("/meta/tv/:id.json", (req, res) => {
   const s = streamers.find((s) => s.id === req.params.id);
-  if (!s) return res.status(404).send("Not found");
+  if (!s) return res.status(404).json({ meta: null, error: "Streamer not found" });
 
   res.json({
     meta: {
@@ -70,24 +88,34 @@ app.get("/meta/tv/:id.json", (req, res) => {
 
 app.get("/stream/tv/:id.json", async (req, res) => {
   const s = streamers.find((s) => s.id === req.params.id);
-  if (!s) return res.json({ streams: [] });
+  if (!s) return res.status(404).json({ streams: [], error: "Streamer not found" });
+
+  const cacheKey = `stream_${s.id}`;
+  const cached = cache.get(cacheKey);
+  if (cached) return res.json(cached);
 
   try {
-    const result = await axios.get(`https://kick.com/api/v2/channels/${s.username}`);
+    const result = await axios.get(`https://kick.com/api/v2/channels/${s.username}`, {
+      timeout: 5000
+    });
     const m3u8 = result.data?.livestream?.source;
-    if (!m3u8) return res.json({ streams: [] });
+    if (!m3u8) {
+      return res.status(404).json({ streams: [], error: "Stream not available" });
+    }
 
-    res.json({
+    const response = {
       streams: [
         {
           title: "Kick.tv Live",
           url: m3u8
         }
       ]
-    });
+    };
+    cache.set(cacheKey, response);
+    res.json(response);
   } catch (e) {
     console.error("Stream error:", e.message);
-    res.json({ streams: [] });
+    res.status(500).json({ streams: [], error: "Failed to fetch stream" });
   }
 });
 
