@@ -4,10 +4,10 @@ const NodeCache = require("node-cache");
 const cors = require("cors");
 
 const app = express();
-app.use(cors()); // CORS support
-
-const cache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache
+const cache = new NodeCache({ stdTTL: 300 }); // 5 min cache
 const PORT = process.env.PORT || 3000;
+
+app.use(cors()); // wymagane przez Stremio
 
 const streamers = [
   {
@@ -28,6 +28,7 @@ const streamers = [
   }
 ];
 
+// Manifest
 app.get("/manifest.json", (req, res) => {
   res.json({
     id: "kick.manual.addon",
@@ -41,12 +42,13 @@ app.get("/manifest.json", (req, res) => {
         type: "tv",
         id: "kick-catalog",
         name: "Kick Streamerzy",
-        extra: [{ id: "search", name: "Search" }]
+        extra: [{ id: "search", name: "Szukaj" }]
       }
     ]
   });
 });
 
+// Katalog
 app.get("/catalog/tv/kick-catalog.json", (req, res) => {
   const metas = streamers.map((s) => ({
     id: s.id,
@@ -58,10 +60,13 @@ app.get("/catalog/tv/kick-catalog.json", (req, res) => {
   res.json({ metas });
 });
 
+// Wyszukiwanie
 app.get("/catalog/tv/kick-catalog/search=:search.json", (req, res) => {
   const searchTerm = req.params.search.toLowerCase();
   const filtered = streamers.filter(
-    (s) => s.name.toLowerCase().includes(searchTerm) || s.description.toLowerCase().includes(searchTerm)
+    (s) =>
+      s.name.toLowerCase().includes(searchTerm) ||
+      s.description.toLowerCase().includes(searchTerm)
   );
   const metas = filtered.map((s) => ({
     id: s.id,
@@ -73,6 +78,7 @@ app.get("/catalog/tv/kick-catalog/search=:search.json", (req, res) => {
   res.json({ metas });
 });
 
+// Metadata
 app.get("/meta/tv/:id.json", (req, res) => {
   const s = streamers.find((s) => s.id === req.params.id);
   if (!s) return res.status(404).json({ meta: null, error: "Streamer not found" });
@@ -89,6 +95,7 @@ app.get("/meta/tv/:id.json", (req, res) => {
   });
 });
 
+// Strumień
 app.get("/stream/tv/:id.json", async (req, res) => {
   const s = streamers.find((s) => s.id === req.params.id);
   if (!s) return res.status(404).json({ streams: [], error: "Streamer not found" });
@@ -99,9 +106,15 @@ app.get("/stream/tv/:id.json", async (req, res) => {
 
   try {
     const result = await axios.get(`https://kick.com/api/v2/channels/${s.username}`, {
+      headers: {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json"
+      },
       timeout: 5000
     });
-    const m3u8 = result.data?.livestream?.source;
+
+    const m3u8 = result.data?.playback_url;
+
     if (!m3u8) {
       return res.status(404).json({ streams: [], error: "Stream not available" });
     }
@@ -114,6 +127,7 @@ app.get("/stream/tv/:id.json", async (req, res) => {
         }
       ]
     };
+
     cache.set(cacheKey, response);
     res.json(response);
   } catch (e) {
@@ -122,6 +136,7 @@ app.get("/stream/tv/:id.json", async (req, res) => {
   }
 });
 
+// Start
 app.listen(PORT, () => {
   console.log(`✅ Addon live on port ${PORT}`);
 });
