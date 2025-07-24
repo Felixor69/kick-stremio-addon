@@ -1,9 +1,12 @@
 const express = require("express");
 const axios = require("axios");
 const NodeCache = require("node-cache");
+const cors = require("cors");
 
 const app = express();
-const cache = new NodeCache({ stdTTL: 300 }); // Cache na 5 minut
+app.use(cors()); // CORS support
+
+const cache = new NodeCache({ stdTTL: 300 }); // 5 minutes cache
 const PORT = process.env.PORT || 3000;
 
 const streamers = [
