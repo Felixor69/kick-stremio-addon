@@ -4,7 +4,7 @@ const NodeCache = require("node-cache");
 const cors = require("cors");
 
 const app = express();
-const cache = new NodeCache({ stdTTL: 300 });
+const cache = new NodeCache({ stdTTL: 300 }); // Cache 5 minut
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
@@ -32,7 +32,7 @@ const streamers = [
     name: "MokrySuchar",
     poster: "https://kick.com/mokrysuchar/cover-image.jpg",
     background: "https://kick.com/mokrysuchar/cover-image.jpg",
-    description: "Suchar na mokro – humor i granie"
+    description: "Mokry humor i suchary"
   },
   {
     id: "kick-delordione",
@@ -40,7 +40,7 @@ const streamers = [
     name: "Delord",
     poster: "https://kick.com/delordione/cover-image.jpg",
     background: "https://kick.com/delordione/cover-image.jpg",
-    description: "Delord – esportowy klimat"
+    description: "Delord gra i komentuje"
   },
   {
     id: "kick-kubon",
@@ -48,15 +48,15 @@ const streamers = [
     name: "Kubon",
     poster: "https://kick.com/kubon/cover-image.jpg",
     background: "https://kick.com/kubon/cover-image.jpg",
-    description: "LoL i więcej z Kubonem"
+    description: "Kubon z Ligi Legend"
   },
   {
     id: "kick-xntentacion",
     username: "xntentacion",
-    name: "Xntentacion",
+    name: "xntentacion",
     poster: "https://kick.com/xntentacion/cover-image.jpg",
     background: "https://kick.com/xntentacion/cover-image.jpg",
-    description: "Polski Xntentacion – gaming"
+    description: "xntentacion na żywo"
   },
   {
     id: "kick-arquel",
@@ -64,7 +64,7 @@ const streamers = [
     name: "Arquel",
     poster: "https://kick.com/arquel/cover-image.jpg",
     background: "https://kick.com/arquel/cover-image.jpg",
-    description: "Arquel – gry, humor, interakcja"
+    description: "Arquel streamuje gry"
   }
 ];
 
@@ -72,8 +72,8 @@ app.get("/manifest.json", (req, res) => {
   res.json({
     id: "kick.manual.addon",
     version: "1.0.0",
-    name: "Kick.tv Addon",
-    description: "Streamy z Kick.com (PL)",
+    name: "Kick Addon Manual",
+    description: "Streamerzy z Kick.com",
     resources: ["catalog", "meta", "stream"],
     types: ["tv"],
     catalogs: [
@@ -81,7 +81,7 @@ app.get("/manifest.json", (req, res) => {
         type: "tv",
         id: "kick-catalog",
         name: "Kick Streamerzy",
-        extra: [{ name: "search", isRequired: false }]
+        extra: [{ id: "search", name: "Szukaj" }]
       }
     ]
   });
@@ -127,9 +127,8 @@ app.get("/meta/tv/:id.json", (req, res) => {
       poster: s.poster,
       description: s.description,
       background: s.background,
-      behaviorHints: {
-        embeddedChat: `https://kick.com/embed-chat/${s.username}`
-      }
+      logo: s.poster,
+      externalUrl: `https://kick.com/${s.username}`
     }
   });
 });
@@ -143,29 +142,25 @@ app.get("/stream/tv/:id.json", async (req, res) => {
   if (cached) return res.json(cached);
 
   try {
-    const response = await axios.get(`https://kick.com/api/v2/channels/${s.username}`, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        "Accept": "application/json",
-        "Referer": `https://kick.com/${s.username}`,
-        "Origin": "https://kick.com"
-      },
+    const result = await axios.get(`https://kick.com/api/v2/channels/${s.username}`, {
       timeout: 5000
     });
 
-    const playback = response.data?.playback_url;
-    if (!playback) return res.status(404).json({ streams: [], error: "Stream not available" });
+    const m3u8 = result.data?.playback_url || result.data?.livestream?.source;
+    if (!m3u8) {
+      return res.status(404).json({ streams: [], error: "Stream not available" });
+    }
 
-    const streamInfo = {
+    const response = {
       streams: [
         {
           title: "Kick.tv Live",
-          url: playback
+          url: m3u8
         }
       ]
     };
-    cache.set(cacheKey, streamInfo);
-    res.json(streamInfo);
+    cache.set(cacheKey, response);
+    res.json(response);
   } catch (e) {
     console.error("Stream error:", e.message);
     res.status(500).json({ streams: [], error: "Failed to fetch stream" });
