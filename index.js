@@ -4,7 +4,7 @@ const NodeCache = require("node-cache");
 const cors = require("cors");
 
 const app = express();
-const cache = new NodeCache({ stdTTL: 300 }); // Cache 5 minut
+const cache = new NodeCache({ stdTTL: 300 }); // cache 5 minut
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
@@ -30,41 +30,41 @@ const streamers = [
     id: "kick-mokrysuchar",
     username: "mokrysuchar",
     name: "MokrySuchar",
-    poster: "https://kick.com/mokrysuchar/cover-image.jpg",
+    poster: "https://kick.com/mokrysuchar/profile_image", // uzupełnij jeśli masz
     background: "https://kick.com/mokrysuchar/cover-image.jpg",
-    description: "Mokry humor i suchary"
+    description: "Mistrz czarnego humoru i sucharów"
   },
   {
     id: "kick-delordione",
     username: "delordione",
-    name: "Delord",
-    poster: "https://kick.com/delordione/cover-image.jpg",
+    name: "Delordione",
+    poster: "https://kick.com/delordione/profile_image", // uzupełnij
     background: "https://kick.com/delordione/cover-image.jpg",
-    description: "Delord gra i komentuje"
+    description: "Delord – znany z LoL-a i esportu"
   },
   {
     id: "kick-kubon",
     username: "kubon",
     name: "Kubon",
-    poster: "https://kick.com/kubon/cover-image.jpg",
+    poster: "https://kick.com/kubon/profile_image", // uzupełnij
     background: "https://kick.com/kubon/cover-image.jpg",
-    description: "Kubon z Ligi Legend"
+    description: "Kubon gra w LoL-a, śmieje się z czatu"
   },
   {
     id: "kick-xntentacion",
     username: "xntentacion",
-    name: "xntentacion",
-    poster: "https://kick.com/xntentacion/cover-image.jpg",
+    name: "Xntentacion",
+    poster: "https://kick.com/xntentacion/profile_image", // uzupełnij
     background: "https://kick.com/xntentacion/cover-image.jpg",
-    description: "xntentacion na żywo"
+    description: "Xntentacion – emocjonalne rozgrywki"
   },
   {
     id: "kick-arquel",
     username: "arquel",
     name: "Arquel",
-    poster: "https://kick.com/arquel/cover-image.jpg",
+    poster: "https://kick.com/arquel/profile_image", // uzupełnij
     background: "https://kick.com/arquel/cover-image.jpg",
-    description: "Arquel streamuje gry"
+    description: "Arquel – analizy, rozrywka, gry"
   }
 ];
 
@@ -81,14 +81,14 @@ app.get("/manifest.json", (req, res) => {
         type: "tv",
         id: "kick-catalog",
         name: "Kick Streamerzy",
-        extra: [{ id: "search", name: "Szukaj" }]
+        extra: [{ name: "Search", isRequired: false }]
       }
     ]
   });
 });
 
 app.get("/catalog/tv/kick-catalog.json", (req, res) => {
-  const metas = streamers.map((s) => ({
+  const metas = streamers.map(s => ({
     id: s.id,
     type: "tv",
     name: s.name,
@@ -100,25 +100,21 @@ app.get("/catalog/tv/kick-catalog.json", (req, res) => {
 
 app.get("/catalog/tv/kick-catalog/search=:search.json", (req, res) => {
   const searchTerm = req.params.search.toLowerCase();
-  const filtered = streamers.filter(
-    (s) =>
-      s.name.toLowerCase().includes(searchTerm) ||
-      s.description.toLowerCase().includes(searchTerm)
-  );
-  const metas = filtered.map((s) => ({
-    id: s.id,
-    type: "tv",
-    name: s.name,
-    poster: s.poster,
-    description: s.description
-  }));
+  const metas = streamers
+    .filter(s => s.name.toLowerCase().includes(searchTerm) || s.description.toLowerCase().includes(searchTerm))
+    .map(s => ({
+      id: s.id,
+      type: "tv",
+      name: s.name,
+      poster: s.poster,
+      description: s.description
+    }));
   res.json({ metas });
 });
 
 app.get("/meta/tv/:id.json", (req, res) => {
-  const s = streamers.find((s) => s.id === req.params.id);
-  if (!s) return res.status(404).json({ meta: null, error: "Streamer not found" });
-
+  const s = streamers.find(s => s.id === req.params.id);
+  if (!s) return res.status(404).json({ meta: null });
   res.json({
     meta: {
       id: s.id,
@@ -126,15 +122,13 @@ app.get("/meta/tv/:id.json", (req, res) => {
       name: s.name,
       poster: s.poster,
       description: s.description,
-      background: s.background,
-      logo: s.poster,
-      externalUrl: `https://kick.com/${s.username}`
+      background: s.background
     }
   });
 });
 
 app.get("/stream/tv/:id.json", async (req, res) => {
-  const s = streamers.find((s) => s.id === req.params.id);
+  const s = streamers.find(s => s.id === req.params.id);
   if (!s) return res.status(404).json({ streams: [], error: "Streamer not found" });
 
   const cacheKey = `stream_${s.id}`;
@@ -143,13 +137,17 @@ app.get("/stream/tv/:id.json", async (req, res) => {
 
   try {
     const result = await axios.get(`https://kick.com/api/v2/channels/${s.username}`, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+        "Accept": "application/json",
+        "Referer": `https://kick.com/${s.username}`,
+        "Origin": "https://kick.com"
+      },
       timeout: 5000
     });
 
-    const m3u8 = result.data?.playback_url || result.data?.livestream?.source;
-    if (!m3u8) {
-      return res.status(404).json({ streams: [], error: "Stream not available" });
-    }
+    const m3u8 = result.data?.livestream?.playback_url;
+    if (!m3u8) return res.json({ streams: [] });
 
     const response = {
       streams: [
@@ -159,6 +157,7 @@ app.get("/stream/tv/:id.json", async (req, res) => {
         }
       ]
     };
+
     cache.set(cacheKey, response);
     res.json(response);
   } catch (e) {
@@ -168,5 +167,5 @@ app.get("/stream/tv/:id.json", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`✅ Addon live on port ${PORT}`);
+  console.log(`✅ Kick Stremio Addon running on port ${PORT}`);
 });
