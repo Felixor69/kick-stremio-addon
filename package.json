@@ -1,14 +1,21 @@
 {
   "name": "kick-stremio-addon",
-  "version": "1.0.0",
+  "version": "1.1.0",
+  "description": "Stremio addon for Kick.com streamers",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
     "axios": "^1.6.8",
+    "cors": "^2.8.5",
     "express": "^4.19.2",
-    "node-cache": "^5.1.2",
-    "cors": "^2.8.5"
-  }
+    "node-cache": "^5.1.2"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": ["stremio", "kick", "addon", "streaming"],
+  "author": "Felixor69",
+  "license": "MIT"
 }
