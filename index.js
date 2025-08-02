@@ -126,7 +126,10 @@ app.get("/meta/tv/:id.json", (req, res) => {
       name: s.name,
       poster: s.poster,
       description: s.description,
-      background: s.background
+      background: s.background,
+      behaviorHints: {
+        embeddedChat: `https://kick.com/embed-chat/${s.username}`
+      }
     }
   });
 });
